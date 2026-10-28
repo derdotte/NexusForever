@@ -1,4 +1,5 @@
-﻿using NexusForever.Game.Abstract.Entity;
+﻿using System.Linq;
+using NexusForever.Game.Abstract.Entity;
 using NexusForever.Game.Abstract.Prerequisite;
 using NexusForever.Game.Spell;
 using NexusForever.GameTable;
@@ -40,6 +41,21 @@ namespace NexusForever.WorldServer.Network.Message.Handler.Item
             if (itemSpecial.Spell4IdOnActivate > 0u)
             {
                 if (itemSpecial.PrerequisiteIdGeneric00 > 0 && !prerequisiteManager.Meets(session.Player, itemSpecial.PrerequisiteIdGeneric00))
+                {
+                    session.Player.SendGenericError(GenericError.UnlockItemFailed); // TODO: Confirm right error message.
+                    return;
+                }
+
+                // the item is consumed before the cast is attempted, so a cast the spell's own caster
+                // cast prerequisite refuses would eat it. This is the gate the client evaluates
+                // locally before it sends the use at all; for an AMP Power Upgrade item it is
+                // Prerequisite 28557, "bonus power < 10". Only checked when no runner prerequisite
+                // could override it, so it can never refuse a cast Spell.Cast would have allowed.
+                Spell4Entry spell4Entry = gameTableManager.Spell4.GetEntry(itemSpecial.Spell4IdOnActivate);
+                if (spell4Entry != null
+                    && spell4Entry.PrerequisiteIdCasterCast > 0u
+                    && spell4Entry.PrerequisiteIdRunners.All(p => p == 0u)
+                    && !prerequisiteManager.Meets(session.Player, spell4Entry.PrerequisiteIdCasterCast))
                 {
                     session.Player.SendGenericError(GenericError.UnlockItemFailed); // TODO: Confirm right error message.
                     return;
